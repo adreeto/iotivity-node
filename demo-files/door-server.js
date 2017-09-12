@@ -12,33 +12,45 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-var client = require("iotivity-node").client;
-var userProfileResource;
+const device = require("iotivity-node");
+const client = device.client;
 
-var resourceUpdate = function(resource) {
-  console.log("Got an update from the OCF User Profile Server");
-};
+var doorResource,
+  _ = {
+    extend: require("lodash.assignin")
+  },
+  path = require("path");
 
-client.on( "resourcefound", function(resource) {
-  console.log(resource);
-  if (resource.resourcePath === "/a/userProfileServer") {
-    userProfileResource = resource;
-    resource.on("update", resourceUpdate);
-    console.log("got here fine");
-  }
+require( "../tests/preamble" )( __filename, [ {
+	href: "/a/lightServer",
+	rel: "",
+	rt: [ "core.light" ],
+	"if": [ "oic.if.baseline" ]
+} ], path.resolve( path.join( __dirname, ".." ) ) );
+
+_.extend( device.device, {
+	coreSpecVersion: "res.1.1.0",
+	dataModels: [ "something.1.0.0" ],
+	name: "light-server"
 } );
 
-console.log("Issuing discovery request");
-client.findResources()
-      .catch( function(error) {
-        console.log("Caught an error");
-        console.error(error.stack ? error.stack :
-          (error.message ? error.message : error));
-        process.exit(1);
-      });
+_.extend( device.platform, {
+	manufacturerName: "Intel",
+	manufactureDate: new Date( "Wed Sep 23 10:04:17 EEST 2015" ),
+	platformVersion: "1.1.1",
+	firmwareVersion: "0.0.1",
+	supportUrl: "http://example.com/"
+} );
 
-process.on( "SIGINT", function() {
-  console.log("Exiting...");
-  userProfileResource.removeListener("update", resourceUpdate);
-  process.exit(0);
+var onUpdate = function (resource){
+  console.log("Door is " + doorResource.properties.door);
+}
+
+client.on("resourcefound", function(resource){
+  if(resource.resourcePath === '/a/sceneManagerServer') {
+    doorResource = resource;
+    resource.on("update", onUpdate);
+  }
 });
+
+client.findResources().catch(function(error){console.log(error);});
