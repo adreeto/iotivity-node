@@ -12,31 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const device = require("iotivity-node");
-const readline = require("readline");
-const server = device.server;
+const device = require("iotivity-node"); // change to ocfDevice
+const readline = require("readline");    // change to npmReadline
+const server = device.server;            // change to ocfServer - this is a high level interface
 
 var visionResource,
-		_ = {
+		_ = {  // This is how the lodash libraries are represented
 			extend: require( "lodash.assignin" ),
 			each: require( "lodash.foreach" )
 		},
 		path = require( "path" )
 		observerCount = 0;
 
-require( "../tests/preamble" )( __filename, [ {
-	href: "/a/visionSensor",
+//// Device and platform identification information
+require( "../tests/preamble" )( __filename, [ { // Ask gabriel what this does
+	href: "/a/visionSensor", // Shadman: this is where you change references to resources
 	rel: "",
-	rt: [ "core.sensor" ],
-	"if": [ "oic.if.baseline" ]
+	rt: [ "core.sensor" ], // figure out this resource type
+	"if": [ "oic.if.baseline" ] // figure out this interface
 } ], path.resolve( path.join( __dirname, ".." ) ) );
 
-_.extend( device.device, {
+_.extend( device.device, { // find out how and when this is used
 	coreSpecVersion: "res.1.1.0",
 	dataModels: [ "something.1.0.0" ],
 	name: "visionSensor-server"
 } );
-_.extend( device.platform, {
+
+_.extend( device.platform, {// find out how and when this is used
 	manufacturerName: "Intel",
 	manufactureDate: new Date( "Wed Sep 23 10:04:17 EEST 2015" ),
 	platformVersion: "1.1.1",
@@ -44,6 +46,7 @@ _.extend( device.platform, {
 	supportUrl: "http://example.com/"
 } );
 
+//// Ask gabriel about point to point security
 function handleError(theError) {
 	console.error(theError);
 	process.exit(1);
@@ -51,49 +54,54 @@ function handleError(theError) {
 
 var visionResourceRequestHandlers = {
 	retrieve: function(request) {
-							request.respond(request.target)
-										 .catch(handleError);
-							observerCount += ("observe" in request) ? (request.observe ? 1 : -1) : 0;
-							console.log("Got a retrieve request");
-							if("observer" in request) {
-								if(request.observe) {
-									console.log("Added an observer");
-								}
-								else {
-									console.log("Removed an observer");
-								}
-							}
-						}
+		request.respond(request.target)
+		  .catch(handleError);
+		observerCount += ("observe" in request) ? (request.observe ? 1 : -1) : 0;
+		console.log("Got a retrieve request");
+		if("observer" in request) {
+			if(request.observe) {
+				console.log("Added an observer");
+			}
+			else {
+				console.log("Removed an observer");
+			}
+		}
+	}
 }
 
-if ( device.device.uuid ) {
+if ( device.device.uuid ) { // ask where and how and who uuid is defined
 	console.log( "Registering OCF resource" );
 
-	server.register( {
+	server.register( { /// How do you define multiple servers of same type? (two lights in a room)
 		resourcePath: "/a/visionSensor",
 		resourceTypes: [ "core.sensor" ],
 		interfaces: [ "oic.if.baseline" ],
 		discoverable: true,
 		observable: true,
-		properties: { templateMatched: "unidentified" }
-	} ).then(
-		function( resource ) {
-			console.log( "OCF resource successfully registered" );
-			visionResource = resource;
+		properties: { templateMatched: "unidentified", // this will send the index, not always string
+									timestamp: new Date(), // timestamp when the template match occurred
+	                deviceID: "DEVICEID",  // deviceID: deviceID
+									uuid: "uuid",
+								} // Shadman: defined these properties
+	} ).then( function( resource ) {
+		console.log( "OCF resource successfully registered" );
+		visionResource = resource;
 
-			// Add event handlers for each supported request type
-			_.each( visionResourceRequestHandlers, function( callback, requestType ) {
-				resource[ "on" + requestType ]( function( request ) {
-					callback( request );
-				} );
-			} );
-		},
-		function( error ) {
-			throw error;
-		} );
+		// Add event handlers for each supported request type
+		_.each( visionResourceRequestHandlers, // change based on your requestHandlers
+			function( callback, requestType ) {
+			resource[ "on" + requestType ]( function( request ) {
+				callback( request );
+			});
+		});
+	},
+	handleError);
 }
 
-function templateMatch(template) {
+/*
+   Checks for a string input - if that input is 0, 1, 2, 3, 4
+*/
+function matchTemplate(template) { // rename to functionTemplateMatch
 	if (['0', '1', '2', '3', '4'].indexOf(template) > -1) {
 		console.log("Recieved press: " + template);
 		// templateMatched
@@ -101,24 +109,33 @@ function templateMatch(template) {
 			visionResource.properties.templateMatched = template;
 		} else {
 			visionResource.properties.templateMatched = "unidentified";
+			visionResource.properties.timestamp = new Date();
 		}
-		visionResource.notify()
-									.catch(function(error){
-										console.log("Error while notifying: " + error.message);
-									});
+		visionResource.notify() // this will notify all observers
+			.catch(handleError);
+		console.log(visionResource);
 	}
 }
 
-readline.emitKeypressEvents(process.stdin);
-process.stdin.setRawMode(true);
-process.stdin.on('keypress', function(str, key) {
-	if(key.ctrl && key.name === 'c') {
-		process.emit("SIGINT");
-	}
-	templateMatch(key.name)
-});
+// local registration index and template value (tuple)
+function registerTemplate() {
 
-process.on("SIGINT", function() {
-	console.log("Exiting...");
-	process.exit(0);
-});
+} // be able to register a new template
+
+function setupInput() {
+	readline.emitKeypressEvents(process.stdin);
+	process.stdin.setRawMode(true);
+	process.stdin.on('keypress', function(str, key) {
+		if(key.ctrl && key.name === 'c') {
+			process.emit("SIGINT");
+		}
+		matchTemplate(key.name)
+	});
+
+	process.on("SIGINT", function() {
+		console.log("Exiting...");
+		process.exit(0);
+	});
+} // Define this so you can get an input for the template to match
+
+setupInput();
