@@ -51,15 +51,14 @@ function handleError( theError ) {
 
 var fidoResourceRequestHandlers = {
   retrieve: function(request) {
-    request.respond(request.target)
-					 .catch(handleError);
-              console.log("Got a retrieve function request");
-              observerCount += ("observe" in request) ? (request.observe ? 1 : -1) : 0;
-          		console.log("Added to observers");
-            },
+    request.respond(request.target).catch(handleError);
+    console.log("Got a retrieve function request");
+    observerCount += ("observe" in request) ? (request.observe ? 1 : -1) : 0;
+		console.log("Added to observers");
+  },
   update: function( request ) {
-            console.log("Got an update request");
-          }
+    console.log("Got an update request");
+  }
 };
 
 if ( device.device.uuid ) {
@@ -71,27 +70,21 @@ if ( device.device.uuid ) {
 		interfaces: [ "oic.if.baseline" ],
 		discoverable: true,
 		observable: true,
+    // secure: true,
 		properties: { userAuthenticated: "unidentified" }
-	} ).then(
-		function( resource ) {
-			console.log( "OCF resource successfully registered" );
-			fidoResource = resource;
+	} ).then( function( resource ) {
+		console.log( "OCF resource successfully registered" );
+		fidoResource = resource;
 
-			// Add event handlers for each supported request type
-			_.each( fidoResourceRequestHandlers, function( callback, requestType ) {
-				resource[ "on" + requestType ]( function( request ) {
-					console.log( "Received request " + JSON.stringify( request, null, 4 ) );
-					callback( request );
-				} );
+		// Add event handlers for each supported request type
+		_.each( fidoResourceRequestHandlers, function( callback, requestType ) {
+			resource[ "on" + requestType ]( function( request ) {
+				callback( request );
 			} );
-		},
-		function( error ) {
-			throw error;
 		} );
+	},
+	handleError);
 }
-
-// Find a FIDO device to send your data to
-console.log("Issuing discovery request");
 
 var userDict = {
   unidentified: 'unidentified',
@@ -105,25 +98,22 @@ var updateHandler = function(resource) {
   var user = userDict[visionResource.properties['templateMatched']];
   console.log(user + " is seen");
   fidoResource.properties['userAuthenticated'] = user;
-  fidoResource.notify().catch(function(error){
-    console.log("Error while notifying: " + error.message);
-  });
+  fidoResource.notify()
+    .catch(handleError);
 }
 
 client.on('resourcefound', function(resource) {
-            if ( resource.resourcePath === "/a/visionSensor" ) {
-              console.log("Found the vision resource");
-              visionResource = resource;
-              resource.on("update", updateHandler);
-            }
-          });
+  if ( resource.resourcePath === "/a/visionSensor" ) {
+    console.log("Found the vision resource");
+    visionResource = resource;
+    resource.on("update", updateHandler);
+  }
+});
 
+// Find a FIDO device to send your data to
+console.log("Issuing discovery request");
 client.findResources()
-      .catch( function( error ) {
-        console.error( error.stack ? error.stack :
-          ( error.message ? error.message : error ) );
-        process.exit( 1 );
-      });
+  .catch(handleError);
 
 process.on("SIGINT", function() {
   console.log("Exiting...");
