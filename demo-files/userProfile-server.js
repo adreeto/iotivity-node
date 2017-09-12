@@ -16,116 +16,104 @@ const device = require("iotivity-node");
 const server = device.server;
 const client = device.client;
 
-var userProfileResource, fidoResource,
-		_ = {
-			extend: require( "lodash.assignin" ),
-			each: require( "lodash.foreach" )
-		},
-		path = require( "path" )
-		observerCount = 0;
+var sceneResource, fidoResource,
+  _ = {
+    extend: require("lodash.assignin"),
+    each: require("lodash.foreach")
+  },
+  path = require("path");
 
-require( "../tests/preamble" )( __filename, [ {
-	href: "/a/userProfileServer",
-	rel: "",
-	rt: [ "core.authenticate" ],
-	"if": [ "oic.if.baseline" ]
-} ], path.resolve( path.join( __dirname, ".." ) ) );
+require("../tests/preamble")( __filename, [{
+  href: "/a/sceneManagerServer",
+  rel: "",
+  rt: ["core.scenes"],
+  "if": ["oic.if.baseline"]
+}], path.resolve(path.join(__dirname, "..")));
 
-_.extend( device.device, {
-	coreSpecVersion: "res.1.1.0",
-	dataModels: [ "something.1.0.0" ],
-	name: "fido-server"
-} );
-_.extend( device.platform, {
-	manufacturerName: "Intel",
-	manufactureDate: new Date( "Wed Sep 23 10:04:17 EEST 2015" ),
-	platformVersion: "1.1.1",
-	firmwareVersion: "0.0.1",
-	supportUrl: "http://example.com/"
-} );
-var userSettings = {
-  'unidentified': { 'light': { 'status': 'off', 'color' : 'green' },
-									  'door' : { 'status': 'closed' } },
-  'Shadman': { 'light': { 'status': 'on', 'color' : 'green' },
-							 'door' : { 'status': 'open' } },
-  'Sachin' : { 'light': { 'status': 'on', 'color' : 'blue' },
-							 'door' : { 'status': 'open' } },
-  'Venky'	 : { 'light': { 'status': 'on', 'color' : 'red' },
-						   'door' : { 'status': 'open' } },
-  'Mike'   : { 'light': { 'status': 'on', 'color' : 'purple' },
-						   'door' : { 'status': 'open' } },
+_.extend(device.device, {
+  coreSpecVersion: "res.1.1.0",
+  dataModels: ["something-else.1.0.0"],
+  name: "sceneManager-server"
+});
+
+_.extend(device.platform, {
+  manufacturerName: "Intel",
+  manufactureDate: new Date("Wed Sep 23 10:04:17 EEST 2015"),
+  platformVersion: "1.1.1",
+  firmwareVersion: "0.0.1",
+  supportUrl: "http://example.com"
+});
+
+function handleError(error) {
+  console.error(error);
+  process.exit(1);
 }
 
-function handleError( theError ) {
-	console.error( theError );
-	process.exit( 1 );
-}
-
-var userProfileRequestHandlers = {
+var sceneResourceRequestHandlers = {
   retrieve: function(request) {
-    					request.respond(request.target).catch(handleError);
-              console.log("Got a retrieve function request");
-              observerCount += ("observe" in request) ? (request.observe ? 1 : -1) : 0;
-          		console.log("Added to observers");
-            },
-  update: function( request ) {
-            console.log("Got an update request");
-          }
+    request.respond(request.target).catch(handleError);
+    console.log("Got a retrieve function request");
+  },
+  update: function(request) {
+    console.log("Got an update request");
+  }
+}
+
+if(device.device.uuid) {
+  console.log("Registering OCF resource");
+
+  server.register({
+    resourcePath: "/a/sceneManagerServer",
+    resourceTypes: ["core.server"],
+    interfaces: ["oic.if.baseline"],
+    discoverable: true,
+    observable: true,
+    properties: {"light": {"status" : "off", "intensity" : null},
+      "door": "closed" }
+  }).then(function(resource) {
+      console.log("OCF resource successfully registered");
+      sceneResource = resource;
+
+      _.each(sceneResourceRequestHandlers, function(callback, requestType) {
+        resource["on" + requestType](function(request) {
+          callback(request);
+        });
+      })
+    }, handleError);
+}
+
+var sceneDefs = {
+  'unidentified': { 'light': { 'status': 'off', 'intensity' : null },
+									  'door' : 'closed' },
+  'Shadman': { 'light': { 'status': 'on', 'intensity' : 'low' },
+							 'door' : 'open' },
+  'Sachin' : { 'light': { 'status': 'on', 'intensity' : 'low' },
+							 'door' : 'open' },
+  'Venky'	 : { 'light': { 'status': 'on', 'intensity' : 'med' },
+						   'door' : 'open' },
+  'Mike'   : { 'light': { 'status': 'on', 'intensity' : 'high' },
+						   'door' : 'open' } , // Note that when this is inside another object, there are errors
 };
 
-if ( device.device.uuid ) {
-	console.log( "Registering OCF resource" );
-
-	server.register( {
-		resourcePath: "/a/userProfileServer",
-		resourceTypes: [ "core.sensor" ],
-		interfaces: [ "oic.if.baseline" ],
-		discoverable: true,
-		observable: true,
-		properties: { 'light': { 'status': 'off', 'color' : 'green' },
-									'door' : { 'status': 'closed' } }
-	} ).then(
-		function( resource ) {
-			console.log( "OCF resource successfully registered" );
-			userProfileResource = resource;
-
-			// Add event handlers for each supported request type
-			_.each( userProfileRequestHandlers, function( callback, requestType ) {
-				resource[ "on" + requestType ]( function( request ) {
-					callback( request );
-				} );
-			} );
-		},
-		function( error ) {
-			throw error;
-		} );
-}
-
-
 var updateHandler = function(resource) {
-	console.log(userSettings[fidoResource.properties.userAuthenticated]);
-	userProfileResource.properties = userSettings[fidoResource.properties.userAuthenticated];
-	userProfileResource.notify().catch(function(error){console.log(error);});
+  var scene = fidoResource.properties["userAuthenticated"];
+  console.log("Updating room settings to :" + JSON.stringify(sceneDefs[scene], null, 4));
+  sceneResource.properties = sceneDefs[scene];
+  sceneResource.notify().catch(handleError);
 }
 
-// Find a FIDO device to send your data to
-client.on('resourcefound', function(resource) {
-            if ( resource.resourcePath === "/a/fidoServer" ) {
-              console.log("Found the FIDO resource");
-              fidoResource = resource;
-              resource.on("update", updateHandler);
-            }
-          });
+client.on("resourcefound", function(resource) {
+  if(resource.resourcePath === "/a/fidoServer") {
+    console.log("Found FIDO");
+    fidoResource = resource;
+    resource.on("update", updateHandler)
+  }
+});
 
-console.log("Issuing discovery request");
 client.findResources()
-      .catch( function( error ) {
-        console.error( error.stack ? error.stack :
-          ( error.message ? error.message : error ) );
-        process.exit( 1 );
-      });
+  .catch(handleError);
 
 process.on("SIGINT", function() {
-	console.log("Exiting...");
-	process.exit(0);
+  console.log("Exiting...");
+  process.exit(0);
 });
