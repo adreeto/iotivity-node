@@ -42,15 +42,14 @@ _.extend( device.platform, {
 	supportUrl: "http://example.com/"
 } );
 
-var onUpdate = function (resource){
-  console.log("Door is " + doorResource.properties.door);
-}
-
 client.on("resourcefound", function(resource){
   if(resource.resourcePath === '/a/sceneManagerServer') {
     doorResource = resource;
-    resource.on("update", onUpdate);
+    doorResource.on("update", function (resource){
+      console.log("Door is " + doorResource.properties.door);
+    });
   }
 });
-
+console.log("HI");
 client.findResources().catch(function(error){console.log(error);});
+console.log("BYE");
