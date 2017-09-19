@@ -1,3 +1,15 @@
+# Additions
+## Demo Files
+This folder contains the files for a demonstration - need to start the files in this order:
+`node vision-sensor.js`
+`node fido-server.js`
+`node sceneManager-server.js`
+`node door-server.js`
+
+## Ongoing-Heartbeat
+This folder contains an updated demo - you should be able to start the files in any order and it should communicate
+
+
 # iotivity-node
 
 ## Description
